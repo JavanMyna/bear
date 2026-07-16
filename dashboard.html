@@ -583,8 +583,6 @@
       document.getElementById("budget-daily").className = "stat-value " + (dailySafe > 0 ? "stat-neutral" : "stat-negative");
     }
 
-    }
-
     async function reloadAll() {
       var since = U.daysAgoStr(currentWindow);
       var [{ data: chartTx, error }, { data: allTx }] = await Promise.all([

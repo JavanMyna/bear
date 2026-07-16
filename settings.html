@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Safe-to-Save — Settings</title>
+  <script>(function(){var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})();</script>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase.js"></script>
@@ -15,10 +16,27 @@
 
   <nav class="nav">
     <span class="nav-title">Settings</span>
-    <a href="dashboard.html" class="nav-btn">Done</a>
+    <div class="desktop-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="log.html">Log</a>
+      <a href="checkin.html">Check</a>
+      <a href="settings.html" class="active">Settings</a>
+    </div>
+    <a href="dashboard.html" class="nav-btn nav-mobile-only">Done</a>
   </nav>
 
   <main class="page">
+    <div class="card">
+      <h2>Appearance</h2>
+      <div class="setting-row">
+        <span>Dark Mode</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="dark-toggle" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Recommendation Settings</h2>
 
@@ -81,6 +99,19 @@
       const session = await AUTH.requireAuth();
       if (!session) return;
       userId = session.user.id;
+
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      document.getElementById("dark-toggle").checked = isDark;
+      document.getElementById("dark-toggle").addEventListener("change", function() {
+        if (this.checked) {
+          document.documentElement.setAttribute("data-theme", "dark");
+          localStorage.setItem("theme", "dark");
+        } else {
+          document.documentElement.removeAttribute("data-theme");
+          localStorage.setItem("theme", "light");
+        }
+      });
+
       await loadSettings();
     }
 

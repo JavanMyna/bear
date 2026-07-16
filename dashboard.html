@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Safe-to-Save — Dashboard</title>
+  <script>(function(){var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})();</script>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -16,7 +17,13 @@
 
   <nav class="nav">
     <span class="nav-title">Safe-to-Save</span>
-    <a href="settings.html" class="nav-btn">Settings</a>
+    <div class="desktop-nav">
+      <a href="dashboard.html" class="active">Dashboard</a>
+      <a href="log.html">Log</a>
+      <a href="checkin.html">Check</a>
+      <a href="settings.html">Settings</a>
+    </div>
+    <a href="settings.html" class="nav-btn nav-mobile-only">Settings</a>
   </nav>
 
   <main class="page">
@@ -34,6 +41,10 @@
 
     <div class="card" id="recent-card">
       <h2>Recent Transactions</h2>
+      <div class="search-bar">
+        <input type="text" id="tx-search" placeholder="Search notes or categories..." autocomplete="off" />
+      </div>
+      <div class="filter-chips" id="filter-chips"></div>
       <div class="empty-state" id="recent-empty">
         <div class="empty-icon">-</div>
         <p>No transactions yet. Tap + to log your first.</p>
@@ -62,6 +73,8 @@
   <script>
     let chart = null;
     let currentWindow = 7;
+    let allTransactions = [];
+    let userId = null;
 
     function groupByDay(transactions) {
       const map = {};
@@ -86,124 +99,198 @@
       const labels = buildLabels(currentWindow);
       const data = labels.map((d) => grouped[d] || 0);
       const total = data.reduce((a, b) => a + b, 0);
-
       document.getElementById("chart-total").textContent = U.fmtMYR(total);
       const labelMap = { 7: "Last 7 days", 30: "Last 30 days", 365: "Last 12 months" };
       document.getElementById("chart-label").textContent = labelMap[currentWindow];
-
       const ctx = document.getElementById("spend-chart").getContext("2d");
       if (chart) chart.destroy();
-
       chart = new Chart(ctx, {
         type: "bar",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Daily spend",
-              data,
-              backgroundColor: "#c8e6c9",
-              borderColor: "#2e7d32",
-              borderWidth: 1,
-              borderRadius: 4,
-            },
-          ],
-        },
+        data: { labels, datasets: [{ label: "Daily spend", data, backgroundColor: "#c8e6c9", borderColor: "#2e7d32", borderWidth: 1, borderRadius: 4 }] },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => U.fmtMYR(ctx.raw),
-              },
-            },
-          },
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => U.fmtMYR(ctx.raw) } } },
           scales: {
-            x: {
-              grid: { display: false },
-              ticks: {
-                maxTicksLimit: currentWindow <= 7 ? 7 : currentWindow <= 30 ? 10 : 12,
-                callback: function (val, idx) {
-                  const d = this.getLabelForValue(val);
-                  if (!d) return "";
-                  const parts = d.split("-");
-                  return parts[2] + "/" + parts[1];
-                },
-              },
-            },
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: (val) => U.fmtMYR(val),
-              },
-            },
-          },
-        },
+            x: { grid: { display: false }, ticks: { maxTicksLimit: currentWindow <= 7 ? 7 : currentWindow <= 30 ? 10 : 12, callback: function(v) { var d=this.getLabelForValue(v); if(!d)return"";var p=d.split("-");return p[2]+"/"+p[1]; } } },
+            y: { beginAtZero: true, ticks: { callback: (val) => U.fmtMYR(val) } }
+          }
+        }
       });
     }
 
-    function renderRecent(transactions) {
-      const container = document.getElementById("recent-list");
-      const empty = document.getElementById("recent-empty");
+    function getFilterMonths() {
+      var months = new Set();
+      for (var i = 0; i < allTransactions.length; i++) {
+        var d = allTransactions[i].occurred_on.substring(0, 7);
+        months.add(d);
+      }
+      var arr = Array.from(months).sort().reverse();
+      return arr;
+    }
 
-      if (!transactions || transactions.length === 0) {
+    function renderFilterChips() {
+      var container = document.getElementById("filter-chips");
+      var months = getFilterMonths();
+      if (months.length === 0) { container.innerHTML = ""; return; }
+      var monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      var active = container.querySelector(".active") ? container.querySelector(".active").dataset.month : "";
+      var html = '<span class="filter-chip' + (!active ? ' active' : '') + '" data-month="">All</span>';
+      for (var i = 0; i < months.length; i++) {
+        var m = months[i];
+        var parts = m.split("-");
+        var label = monthNames[parseInt(parts[1])-1] + " " + parts[0];
+        html += '<span class="filter-chip' + (m === active ? ' active' : '') + '" data-month="' + m + '">' + label + '</span>';
+      }
+      container.innerHTML = html;
+      container.querySelectorAll(".filter-chip").forEach(function(chip) {
+        chip.addEventListener("click", function() {
+          container.querySelectorAll(".filter-chip").forEach(function(c) { c.classList.remove("active"); });
+          chip.classList.add("active");
+          filterAndRender();
+        });
+      });
+    }
+
+    function getFilteredTransactions() {
+      var search = document.getElementById("tx-search").value.toLowerCase().trim();
+      var activeChip = document.querySelector("#filter-chips .filter-chip.active");
+      var month = activeChip ? activeChip.dataset.month : "";
+      var filtered = allTransactions;
+      if (month) {
+        filtered = filtered.filter(function(t) { return t.occurred_on.substring(0, 7) === month; });
+      }
+      if (search) {
+        filtered = filtered.filter(function(t) {
+          return (t.note && t.note.toLowerCase().indexOf(search) !== -1) || (t.category && t.category.toLowerCase().indexOf(search) !== -1);
+        });
+      }
+      return filtered.sort(function(a,b) { return new Date(b.occurred_on) - new Date(a.occurred_on); });
+    }
+
+    function confirmDialog(msg) {
+      return new Promise(function(resolve) {
+        var overlay = document.createElement("div");
+        overlay.className = "dialog-overlay";
+        overlay.innerHTML = '<div class="dialog-box"><p>' + msg + '</p><div class="dialog-actions"><button class="btn btn-outline btn-sm" id="dlg-cancel">Cancel</button><button class="btn btn-sm" style="background:var(--red);color:white;" id="dlg-confirm">Delete</button></div></div>';
+        document.body.appendChild(overlay);
+        overlay.querySelector("#dlg-cancel").addEventListener("click", function() { overlay.remove(); resolve(false); });
+        overlay.querySelector("#dlg-confirm").addEventListener("click", function() { overlay.remove(); resolve(true); });
+        overlay.addEventListener("click", function(e) { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+      });
+    }
+
+    function bindSwipe(el, txId) {
+      var content = el.querySelector(".tx-content");
+      var startX = 0, movedX = 0, isDragging = false;
+      content.addEventListener("touchstart", function(e) {
+        if (e.touches.length !== 1) return;
+        startX = e.touches[0].clientX;
+        movedX = 0;
+        isDragging = true;
+      }, { passive: true });
+      content.addEventListener("touchmove", function(e) {
+        if (!isDragging) return;
+        var dx = e.touches[0].clientX - startX;
+        movedX = dx;
+        content.style.transform = "translateX(" + dx + "px)";
+      }, { passive: false });
+      content.addEventListener("touchend", function() {
+        isDragging = false;
+        if (movedX < -80) { deleteTx(txId); }
+        else if (movedX > 80) { window.location.href = "log.html?edit=" + txId; }
+        else { content.style.transform = ""; }
+      });
+      content.addEventListener("touchcancel", function() {
+        isDragging = false;
+        content.style.transform = "";
+      });
+    }
+
+    async function deleteTx(txId) {
+      var ok = await confirmDialog("Delete this transaction? This cannot be undone.");
+      if (!ok) {
+        var active = document.querySelector(".tx-row .tx-content[style]");
+        if (active) active.style.transform = "";
+        return;
+      }
+      var { error } = await db.from("transactions").delete().eq("id", txId);
+      if (error) { U.toast("Failed to delete."); return; }
+      U.toast("Deleted.", true);
+      reloadAll();
+    }
+
+    function filterAndRender() {
+      var filtered = getFilteredTransactions();
+      var container = document.getElementById("recent-list");
+      var empty = document.getElementById("recent-empty");
+      if (filtered.length === 0) {
         container.innerHTML = "";
         empty.style.display = "";
         return;
       }
-
       empty.style.display = "none";
-      const sorted = [...transactions].sort(
-        (a, b) => new Date(b.occurred_on) - new Date(a.occurred_on)
-      );
-      const latest = sorted.slice(0, 10);
+      var latest = filtered.slice(0, 30);
+      container.innerHTML = latest.map(function(t) {
+        return '<div class="tx-row">' +
+          '<div class="swipe-bg"><span class="bg-delete">Delete</span><span class="bg-edit">Edit</span></div>' +
+          '<div class="tx-content">' +
+            '<div><div>' + U.fmtDateShort(t.occurred_on) + '</div>' +
+            (t.category ? '<span class="spend-category">' + t.category + '</span>' : '') +
+            (t.note ? '<span class="spend-meta"> ' + t.note + '</span>' : '') + '</div>' +
+            '<div style="display:flex;align-items:center;gap:0.5rem;">' +
+              '<div class="tx-actions">' +
+                '<button class="tx-action-btn" data-edit="' + t.id + '" title="Edit">&#9998;</button>' +
+                '<button class="tx-action-btn danger" data-del="' + t.id + '" title="Delete">&#128465;</button>' +
+              '</div>' +
+              '<div class="spend-amount currency">' + U.fmtMYR(t.amount) + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join("");
+      container.querySelectorAll(".tx-row").forEach(function(row) {
+        var txId = row.querySelector("[data-edit]") ? row.querySelector("[data-edit]").dataset.edit : "";
+        bindSwipe(row, txId);
+        row.querySelector("[data-edit]").addEventListener("click", function(e) {
+          e.stopPropagation();
+          window.location.href = "log.html?edit=" + this.dataset.edit;
+        });
+        row.querySelector("[data-del]").addEventListener("click", function(e) {
+          e.stopPropagation();
+          deleteTx(this.dataset.del);
+        });
+      });
+    }
 
-      container.innerHTML = latest
-        .map(
-          (t) => `
-        <div class="spend-row">
-          <div>
-            <div>${U.fmtDateShort(t.occurred_on)}</div>
-            ${t.category ? `<span class="spend-category">${t.category}</span>` : ""}
-            ${t.note ? `<span class="spend-meta">${t.note}</span>` : ""}
-          </div>
-          <div class="spend-amount currency">${U.fmtMYR(t.amount)}</div>
-        </div>`
-        )
-        .join("");
+    async function reloadAll() {
+      var since = U.daysAgoStr(currentWindow);
+      var [{ data: chartTx, error }, { data: allTx }] = await Promise.all([
+        db.from("transactions").select("*").eq("user_id", userId).gte("occurred_on", since).order("occurred_on", { ascending: true }),
+        db.from("transactions").select("*").eq("user_id", userId).order("occurred_on", { ascending: false }).limit(200),
+      ]);
+      if (error) { U.toast("Failed to load transactions."); return; }
+      renderChart(chartTx || []);
+      allTransactions = allTx || [];
+      renderFilterChips();
+      filterAndRender();
     }
 
     async function loadDashboard() {
-      const session = await AUTH.requireAuth();
+      var session = await AUTH.requireAuth();
       if (!session) return;
-
-      const userId = session.user.id;
-      const since = U.daysAgoStr(currentWindow);
-
-      const [{ data: chartTx, error }, { data: recentTx }] = await Promise.all([
-        db.from("transactions").select("*").eq("user_id", userId).gte("occurred_on", since).order("occurred_on", { ascending: true }),
-        db.from("transactions").select("*").eq("user_id", userId).order("occurred_on", { ascending: false }).limit(20),
-      ]);
-
-      if (error) {
-        U.toast("Failed to load transactions.");
-        return;
-      }
-
-      renderChart(chartTx || []);
-      renderRecent(recentTx || []);
+      userId = session.user.id;
+      reloadAll();
     }
 
-    document.querySelectorAll(".chart-tab").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".chart-tab").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".chart-tab").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        document.querySelectorAll(".chart-tab").forEach(function(b) { b.classList.remove("active"); });
         btn.classList.add("active");
         currentWindow = parseInt(btn.dataset.window);
-        loadDashboard();
+        reloadAll();
       });
     });
+
+    document.getElementById("tx-search").addEventListener("input", filterAndRender);
 
     loadDashboard();
   </script>

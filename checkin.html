@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Safe-to-Save — Check Balance</title>
+  <script>(function(){var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})();</script>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase.js"></script>
@@ -15,7 +16,13 @@
 
   <nav class="nav">
     <span class="nav-title">Check Balance</span>
-    <a href="dashboard.html" class="nav-btn">Done</a>
+    <div class="desktop-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="log.html">Log</a>
+      <a href="checkin.html" class="active">Check</a>
+      <a href="settings.html">Settings</a>
+    </div>
+    <a href="dashboard.html" class="nav-btn nav-mobile-only">Done</a>
   </nav>
 
   <main class="page">

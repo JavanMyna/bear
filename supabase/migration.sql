@@ -7,6 +7,9 @@
 -- synthetic emails (username@safe-to-save.local).
 -- ============================================================
 -- AFTER running: edit js/supabase.js with your Supabase URL and anon key.
+--
+-- Run this after the initial migration to add new columns:
+--   alter table settings add column if not exists custom_categories jsonb default '[]'::jsonb;
 -- ============================================================
 
 -- 1. Profiles table

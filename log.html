@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Safe-to-Save — Log Transaction</title>
+  <script>(function(){var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})();</script>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase.js"></script>
@@ -14,8 +15,14 @@
   <div id="toast" class="toast"></div>
 
   <nav class="nav">
-    <span class="nav-title">Log Transaction</span>
-    <a href="dashboard.html" class="nav-btn">Done</a>
+    <span class="nav-title" id="page-title">Log Transaction</span>
+    <div class="desktop-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="log.html" class="active">Log</a>
+      <a href="checkin.html">Check</a>
+      <a href="settings.html">Settings</a>
+    </div>
+    <a href="dashboard.html" class="nav-btn nav-mobile-only">Done</a>
   </nav>
 
   <main class="page">
@@ -26,31 +33,32 @@
       </div>
 
       <div class="form-group">
-        <label for="category">Category</label>
-        <input type="text" id="category" list="category-list" placeholder="e.g. Food, Transport" autocomplete="off" />
-        <datalist id="category-list">
-          <option value="Food" />
-          <option value="Transport" />
-          <option value="Groceries" />
-          <option value="Shopping" />
-          <option value="Bills" />
-          <option value="Entertainment" />
-          <option value="Health" />
-          <option value="Other" />
-        </datalist>
-      </div>
-
-      <div class="form-group">
-        <label for="date">Date</label>
-        <input type="date" id="date" />
-      </div>
-
-      <div class="form-group">
-        <label for="note">Note (optional)</label>
-        <textarea id="note" placeholder="What was this for?"></textarea>
+        <label>Category</label>
+        <div class="cat-chips" id="cat-chips"></div>
+        <div class="cat-create-row" id="cat-create" style="display:none;">
+          <input type="text" id="cat-name" placeholder="Category name" maxlength="20" />
+          <button class="cat-chip cat-emoji emoji-pick" id="cat-emoji" title="Tap to cycle emoji">📦</button>
+          <button class="btn btn-sm btn-primary" id="cat-save">Add</button>
+        </div>
+        <input type="hidden" id="category" />
       </div>
 
       <button class="btn btn-primary btn-block" id="submit-btn">Save Transaction</button>
+      <button class="btn btn-block mt-1" id="delete-btn" style="display:none;background:var(--red);color:white;">Delete Transaction</button>
+
+      <button class="collapse-toggle" id="collapse-toggle" type="button">
+        <span class="arrow">&#9654;</span> Date &amp; Note
+      </button>
+      <div class="collapse-body" id="collapse-body">
+        <div class="form-group">
+          <label for="date">Date</label>
+          <input type="date" id="date" />
+        </div>
+        <div class="form-group">
+          <label for="note">Note (optional)</label>
+          <textarea id="note" placeholder="What was this for?"></textarea>
+        </div>
+      </div>
     </div>
 
     <div class="card" id="today-card">
@@ -79,85 +87,172 @@
   </nav>
 
   <script>
-    let userId = null;
+    var userId = null;
+    var editId = null;
+    var selectedCategory = "";
+
+    var CAT_DEFAULTS = [
+      { name: "Food", emoji: "🍔" },
+      { name: "Transport", emoji: "🚗" },
+      { name: "Bills", emoji: "🧾" },
+      { name: "Shopping", emoji: "🛍️" },
+      { name: "Entertainment", emoji: "🎬" },
+      { name: "Health", emoji: "💊" },
+      { name: "Other", emoji: "📦" }
+    ];
+
+    function getCustomCategories() {
+      try { return JSON.parse(localStorage.getItem("customCats") || "[]"); } catch(e) { return []; }
+    }
+
+    function saveCustomCategories(arr) {
+      localStorage.setItem("customCats", JSON.stringify(arr));
+      if (!userId) return;
+      var cats = arr.map(function(c) { return { name: c.name, icon: c.icon || c.emoji || "📦" }; });
+      try { db.from("settings").upsert({ user_id: userId, custom_categories: cats }); } catch(e) {}
+    }
+
+    function allCategories() {
+      return CAT_DEFAULTS.concat(getCustomCategories());
+    }
+
+    function renderChips() {
+      var container = document.getElementById("cat-chips");
+      var cats = allCategories();
+      var html = "";
+      for (var i = 0; i < cats.length; i++) {
+        var c = cats[i];
+        var sel = selectedCategory === c.name ? " selected" : "";
+        html += '<button class="cat-chip' + sel + '" data-cat="' + c.name + '"><span class="cat-emoji">' + c.emoji + '</span>' + c.name + '</button>';
+      }
+      html += '<button class="cat-chip cat-chip-add" id="cat-add">+</button>';
+      container.innerHTML = html;
+
+      container.querySelectorAll(".cat-chip[data-cat]").forEach(function(chip) {
+        chip.addEventListener("click", function() {
+          selectedCategory = this.dataset.cat;
+          document.getElementById("category").value = selectedCategory;
+          renderChips();
+        });
+      });
+
+      document.getElementById("cat-add").addEventListener("click", function() {
+        var row = document.getElementById("cat-create");
+        row.style.display = row.style.display === "none" ? "flex" : "none";
+        if (row.style.display === "flex") document.getElementById("cat-name").focus();
+      });
+    }
+
+    var emojiCycle = ["📦","🍕","🚌","💡","🛒","🎮","🏥","📚","🎵","🏠","✈️","🐾"];
+    var emojiIdx = 0;
+    document.addEventListener("DOMContentLoaded", function() {
+      document.getElementById("cat-emoji").addEventListener("click", function() {
+        emojiIdx = (emojiIdx + 1) % emojiCycle.length;
+        this.textContent = emojiCycle[emojiIdx];
+      });
+      document.getElementById("cat-save").addEventListener("click", function() {
+        var name = document.getElementById("cat-name").value.trim();
+        if (!name) return U.toast("Enter a category name.");
+        var emoji = document.getElementById("cat-emoji").textContent;
+        var customs = getCustomCategories();
+        if (customs.some(function(c) { return c.name === name; })) return U.toast("Already exists.");
+        customs.push({ name: name, emoji: emoji, icon: emoji });
+        saveCustomCategories(customs);
+        selectedCategory = name;
+        document.getElementById("category").value = name;
+        document.getElementById("cat-create").style.display = "none";
+        document.getElementById("cat-name").value = "";
+        renderChips();
+        U.toast("Category added!", true);
+      });
+    });
 
     async function init() {
-      const session = await AUTH.requireAuth();
+      var session = await AUTH.requireAuth();
       if (!session) return;
       userId = session.user.id;
       document.getElementById("date").value = U.todayStr();
+
+      var urlParams = new URLSearchParams(window.location.search);
+      editId = urlParams.get("edit");
+      if (editId) {
+        document.getElementById("page-title").textContent = "Edit Transaction";
+        document.getElementById("submit-btn").textContent = "Update Transaction";
+        document.getElementById("delete-btn").style.display = "";
+        var { data, error } = await db.from("transactions").select("*").eq("id", editId).single();
+        if (data && !error) {
+          document.getElementById("amount").value = data.amount;
+          selectedCategory = data.category || "";
+          document.getElementById("category").value = selectedCategory;
+          document.getElementById("date").value = data.occurred_on;
+          document.getElementById("note").value = data.note || "";
+        }
+      }
+
+      renderChips();
       loadToday();
     }
 
+    document.getElementById("collapse-toggle").addEventListener("click", function() {
+      this.classList.toggle("open");
+      document.getElementById("collapse-body").classList.toggle("open");
+    });
+
     async function loadToday() {
-      const today = U.todayStr();
-      const { data, error } = await db
-        .from("transactions")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("occurred_on", today)
-        .order("created_at", { ascending: false });
-
-      const container = document.getElementById("today-list");
-      const empty = document.getElementById("today-empty");
-      const totalEl = document.getElementById("today-total");
-
+      var today = U.todayStr();
+      var { data, error } = await db.from("transactions").select("*").eq("user_id", userId).eq("occurred_on", today).order("created_at", { ascending: false });
+      var container = document.getElementById("today-list");
+      var empty = document.getElementById("today-empty");
+      var totalEl = document.getElementById("today-total");
       if (error || !data || data.length === 0) {
         container.innerHTML = "";
         empty.style.display = "";
         totalEl.style.display = "none";
         return;
       }
-
       empty.style.display = "none";
-      const total = data.reduce((s, t) => s + parseFloat(t.amount), 0);
+      var total = data.reduce(function(s, t) { return s + parseFloat(t.amount); }, 0);
       totalEl.textContent = "Total: " + U.fmtMYR(total);
       totalEl.style.display = "";
-
-      container.innerHTML = data
-        .map(
-          (t) => `
-        <div class="spend-row">
-          <div>
-            ${t.category ? `<span class="spend-category">${t.category}</span>` : ""}
-            ${t.note ? `<span class="spend-meta">${t.note}</span>` : ""}
-          </div>
-          <div class="spend-amount currency">${U.fmtMYR(t.amount)}</div>
-        </div>`
-        )
-        .join("");
+      container.innerHTML = data.map(function(t) {
+        return '<div class="spend-row"><div>' + (t.category ? '<span class="spend-category">' + t.category + '</span>' : "") + (t.note ? '<span class="spend-meta">' + t.note + '</span>' : "") + '</div><div class="spend-amount currency">' + U.fmtMYR(t.amount) + '</div></div>';
+      }).join("");
     }
 
-    document.getElementById("submit-btn").addEventListener("click", async () => {
-      const amountStr = document.getElementById("amount").value;
-      const category = document.getElementById("category").value.trim();
-      const date = document.getElementById("date").value || U.todayStr();
-      const note = document.getElementById("note").value.trim();
+    document.getElementById("submit-btn").addEventListener("click", async function() {
+      var amountStr = document.getElementById("amount").value;
+      var category = document.getElementById("category").value;
+      var date = document.getElementById("date").value || U.todayStr();
+      var note = document.getElementById("note").value.trim();
+      var amount = parseFloat(amountStr);
+      if (!amountStr || isNaN(amount) || amount <= 0) return U.toast("Please enter a valid amount.");
 
-      const amount = parseFloat(amountStr);
-      if (!amountStr || isNaN(amount) || amount <= 0) {
-        return U.toast("Please enter a valid amount.");
+      if (editId) {
+        var { error } = await db.from("transactions").update({ amount: amount, category: category || null, note: note || null, occurred_on: date }).eq("id", editId);
+        if (error) { U.toast("Failed to update."); return; }
+        U.toast("Updated!", true);
+        window.location.href = "dashboard.html";
+      } else {
+        var { error } = await db.from("transactions").insert({ user_id: userId, amount: amount, category: category || null, note: note || null, occurred_on: date });
+        if (error) { U.toast("Failed to save transaction."); return; }
+        U.toast("Saved!", true);
+        document.getElementById("amount").value = "";
+        selectedCategory = "";
+        document.getElementById("category").value = "";
+        document.getElementById("note").value = "";
+        document.getElementById("amount").focus();
+        renderChips();
+        loadToday();
       }
+    });
 
-      const { error } = await db.from("transactions").insert({
-        user_id: userId,
-        amount,
-        category: category || null,
-        note: note || null,
-        occurred_on: date,
-      });
-
-      if (error) {
-        U.toast("Failed to save transaction.");
-        return;
-      }
-
-      U.toast("Saved!", true);
-      document.getElementById("amount").value = "";
-      document.getElementById("category").value = "";
-      document.getElementById("note").value = "";
-      document.getElementById("amount").focus();
-      loadToday();
+    document.getElementById("delete-btn").addEventListener("click", async function() {
+      if (!editId) return;
+      if (!confirm("Delete this transaction?")) return;
+      var { error } = await db.from("transactions").delete().eq("id", editId);
+      if (error) { U.toast("Failed to delete."); return; }
+      U.toast("Deleted.", true);
+      window.location.href = "dashboard.html";
     });
 
     init();

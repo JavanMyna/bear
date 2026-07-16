@@ -22,6 +22,11 @@ const AUTH = (() => {
       throw new Error(msg || "Signup failed. Check your credentials.");
     }
 
+    if (data.user) {
+      await db.from("profiles").upsert({ id: data.user.id, username: username.trim() }).select();
+      await db.from("settings").upsert({ user_id: data.user.id, runway_days: 14, starting_daily_estimate: 0 }).select();
+    }
+
     return data;
   }
 

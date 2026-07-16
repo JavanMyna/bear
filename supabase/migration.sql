@@ -102,18 +102,29 @@ create policy "balance_checkins_delete_own" on balance_checkins
   for delete using (user_id = auth.uid());
 
 -- 5. Auto-create profile + settings on signup
+-- NOTE: This trigger is a safety net. The client also creates
+-- these rows manually after signUp. If the trigger fails for any
+-- reason (metadata not yet available etc.), the client handles it.
 create or replace function handle_new_user()
 returns trigger as $$
 begin
-  insert into profiles (id, username)
-  values (new.id, new.raw_user_meta_data ->> 'username');
+  begin
+    insert into profiles (id, username)
+    values (new.id, coalesce(new.raw_user_meta_data ->> 'username', split_part(new.email, '@', 1)));
+  exception when others then
+    -- client will create the row manually; ignore trigger failures
+  end;
 
-  insert into settings (user_id)
-  values (new.id);
+  begin
+    insert into settings (user_id) values (new.id);
+  exception when others then
+  end;
 
   return new;
 end;
 $$ language plpgsql security definer;
+
+drop trigger if exists on_auth_user_created on auth.users;
 
 create trigger on_auth_user_created
   after insert on auth.users

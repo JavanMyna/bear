@@ -400,6 +400,130 @@ textarea {
   color: white;
 }
 
+/* ---- Type toggle (Expense / Income) ---- */
+.type-toggle {
+  display: flex;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.type-btn {
+  flex: 1;
+  padding: 0.55rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.type-btn.active {
+  background: var(--green);
+  color: white;
+}
+
+/* ---- Savings overview ---- */
+.net-flow {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.net-flow.positive {
+  color: var(--green);
+}
+
+.net-flow.negative {
+  color: var(--red);
+}
+
+/* ---- Donut legend ---- */
+.donut-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0.2rem 0.45rem;
+  border-radius: 99px;
+  transition: background 0.15s;
+  border: 1px solid transparent;
+}
+
+.donut-legend-item:hover {
+  background: var(--bg);
+}
+
+.donut-legend-item.dimmed {
+  opacity: 0.35;
+}
+
+.donut-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ---- Clear filters ---- */
+.clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 99px;
+  border: 1px dashed var(--red);
+  background: none;
+  color: var(--red);
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  transition: background 0.15s;
+}
+
+.clear-filters:hover {
+  background: var(--red-light);
+}
+
+/* ---- Overview segmented control ---- */
+.overview-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.overview-tab {
+  flex: 1;
+  padding: 0.45rem;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.overview-tab.active {
+  background: var(--green);
+  color: white;
+}
+
 .chart-total {
   font-size: 1.5rem;
   font-weight: 700;
@@ -492,6 +616,10 @@ textarea {
 .spend-row .spend-amount {
   font-weight: 600;
   color: var(--red);
+}
+
+.spend-row .spend-amount.income {
+  color: var(--green);
 }
 
 .spend-row .spend-meta {

@@ -10,6 +10,8 @@
 --
 -- Run this after the initial migration to add new columns:
 --   alter table settings add column if not exists custom_categories jsonb default '[]'::jsonb;
+-- Phase 2: add type column for income/expense tracking
+--   alter table transactions add column type text not null default 'expense' check (type in ('expense','income'));
 -- ============================================================
 
 -- 1. Profiles table

@@ -111,6 +111,7 @@
         .from("transactions")
         .select("occurred_on")
         .eq("user_id", userId)
+        .eq("type", "expense")
         .order("occurred_on", { ascending: true });
 
       if (!allTx || allTx.length === 0) {
@@ -132,6 +133,7 @@
         .from("transactions")
         .select("*")
         .eq("user_id", userId)
+        .eq("type", "expense")
         .gte("occurred_on", cutoff)
         .order("occurred_on", { ascending: true });
 

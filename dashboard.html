@@ -11,6 +11,7 @@
   <script src="js/supabase.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/categories.js"></script>
 </head>
 <body>
   <div id="toast" class="toast"></div>
@@ -28,15 +29,33 @@
 
   <main class="page">
     <div class="card">
-      <h2>Spending Overview</h2>
-      <div class="chart-tabs">
-        <button class="chart-tab active" data-window="7">7 days</button>
-        <button class="chart-tab" data-window="30">30 days</button>
-        <button class="chart-tab" data-window="365">12 months</button>
+      <h2>Overview</h2>
+      <div class="overview-tabs">
+        <button class="overview-tab active" data-view="spending">Spending</button>
+        <button class="overview-tab" data-view="savings">Savings</button>
       </div>
-      <div class="chart-total currency" id="chart-total">RM 0.00</div>
-      <div class="chart-label" id="chart-label">Last 7 days</div>
-      <div class="chart-wrap"><canvas id="spend-chart"></canvas></div>
+      <div id="view-spending">
+        <div class="chart-tabs">
+          <button class="chart-tab active" data-window="7">7 days</button>
+          <button class="chart-tab" data-window="30">30 days</button>
+          <button class="chart-tab" data-window="365">12 months</button>
+        </div>
+        <div class="chart-total currency" id="chart-total">RM 0.00</div>
+        <div class="chart-label" id="chart-label">Last 7 days</div>
+        <div class="chart-wrap"><canvas id="spend-chart"></canvas></div>
+        <div class="chart-wrap" style="max-width:260px;margin:0.5rem auto 0;"><canvas id="donut-chart"></canvas></div>
+        <div class="donut-legend" id="donut-legend"></div>
+      </div>
+      <div id="view-savings" style="display:none;">
+        <div class="chart-tabs" id="savings-tabs">
+          <button class="chart-tab active" data-window="7">7 days</button>
+          <button class="chart-tab" data-window="30">30 days</button>
+          <button class="chart-tab" data-window="365">12 months</button>
+        </div>
+        <div class="net-flow currency" id="net-flow">RM 0.00</div>
+        <div class="chart-label" id="net-label">Last 7 days</div>
+        <div class="chart-wrap"><canvas id="savings-chart"></canvas></div>
+      </div>
     </div>
 
     <div class="card" id="recent-card">
@@ -45,6 +64,7 @@
         <input type="text" id="tx-search" placeholder="Search notes or categories..." autocomplete="off" />
       </div>
       <div class="filter-chips" id="filter-chips"></div>
+      <button class="clear-filters" id="clear-filters" style="display:none;">&#10005; Clear filters</button>
       <div class="empty-state" id="recent-empty">
         <div class="empty-icon">-</div>
         <p>No transactions yet. Tap + to log your first.</p>
@@ -71,48 +91,150 @@
   </nav>
 
   <script>
-    let chart = null;
-    let currentWindow = 7;
-    let allTransactions = [];
-    let userId = null;
+    var chart = null;
+    var donutChart = null;
+    var savingsChart = null;
+    var currentWindow = 7;
+    var currentOverview = "spending";
+    var allTransactions = [];
+    var chartTransactions = [];
+    var userId = null;
+    var donutCatFilter = "";
 
     function groupByDay(transactions) {
-      const map = {};
-      for (const t of transactions) {
-        const day = t.occurred_on;
-        if (!map[day]) map[day] = 0;
-        map[day] += parseFloat(t.amount);
+      var map = {};
+      for (var i = 0; i < transactions.length; i++) {
+        var d = transactions[i].occurred_on;
+        if (!map[d]) map[d] = {expense:0, income:0};
+        map[d][transactions[i].type === "income" ? "income" : "expense"] += parseFloat(transactions[i].amount);
       }
       return map;
     }
 
-    function buildLabels(windowDays) {
-      const labels = [];
-      for (let i = windowDays - 1; i >= 0; i--) {
-        labels.push(U.daysAgoStr(i));
-      }
+    function buildLabels(days) {
+      var labels = [];
+      for (var i = days - 1; i >= 0; i--) { labels.push(U.daysAgoStr(i)); }
       return labels;
     }
 
-    function renderChart(transactions) {
-      const grouped = groupByDay(transactions);
-      const labels = buildLabels(currentWindow);
-      const data = labels.map((d) => grouped[d] || 0);
-      const total = data.reduce((a, b) => a + b, 0);
+    function expensesOnly(tx) {
+      return tx.filter(function(t) { return t.type !== "income"; });
+    }
+
+    function renderSpendingChart() {
+      var expenses = expensesOnly(chartTransactions);
+      var grouped = groupByDay(expenses);
+      var labels = buildLabels(currentWindow);
+      var data = labels.map(function(d) { return (grouped[d] ? grouped[d].expense : 0); });
+      var total = data.reduce(function(a,b) { return a+b; }, 0);
       document.getElementById("chart-total").textContent = U.fmtMYR(total);
-      const labelMap = { 7: "Last 7 days", 30: "Last 30 days", 365: "Last 12 months" };
+      var labelMap = { 7: "Last 7 days", 30: "Last 30 days", 365: "Last 12 months" };
       document.getElementById("chart-label").textContent = labelMap[currentWindow];
-      const ctx = document.getElementById("spend-chart").getContext("2d");
+      var ctx = document.getElementById("spend-chart").getContext("2d");
       if (chart) chart.destroy();
       chart = new Chart(ctx, {
         type: "bar",
-        data: { labels, datasets: [{ label: "Daily spend", data, backgroundColor: "#c8e6c9", borderColor: "#2e7d32", borderWidth: 1, borderRadius: 4 }] },
+        data: { labels: labels, datasets: [{ label: "Daily spend", data: data, backgroundColor: "#c8e6c9", borderColor: "#2e7d32", borderWidth: 1, borderRadius: 4 }] },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => U.fmtMYR(ctx.raw) } } },
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return U.fmtMYR(c.raw); } } } },
           scales: {
             x: { grid: { display: false }, ticks: { maxTicksLimit: currentWindow <= 7 ? 7 : currentWindow <= 30 ? 10 : 12, callback: function(v) { var d=this.getLabelForValue(v); if(!d)return"";var p=d.split("-");return p[2]+"/"+p[1]; } } },
-            y: { beginAtZero: true, ticks: { callback: (val) => U.fmtMYR(val) } }
+            y: { beginAtZero: true, ticks: { callback: function(v) { return U.fmtMYR(v); } } }
+          }
+        }
+      });
+    }
+
+    function renderDonutChart() {
+      var expenses = expensesOnly(chartTransactions);
+      var catTotals = {};
+      for (var i = 0; i < expenses.length; i++) {
+        var cat = expenses[i].category || "Other";
+        catTotals[cat] = (catTotals[cat] || 0) + parseFloat(expenses[i].amount);
+      }
+      var cats = Object.keys(catTotals).sort(function(a,b) { return catTotals[b] - catTotals[a]; });
+      var surfaceColor = getComputedStyle(document.body).backgroundColor || "#ffffff";
+      var colors = cats.map(function(c) { return donutCatFilter && c !== donutCatFilter ? CAT.colorFor(c) + "40" : CAT.colorFor(c); });
+      var ctx = document.getElementById("donut-chart").getContext("2d");
+      if (donutChart) donutChart.destroy();
+      donutChart = new Chart(ctx, {
+        type: "doughnut",
+        data: { labels: cats, datasets: [{ data: cats.map(function(c) { return Math.round(catTotals[c] * 100) / 100; }), backgroundColor: colors, borderColor: surfaceColor, borderWidth: 2 }] },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: function(c) { return c.label + ": " + U.fmtMYR(c.raw); } } }
+          },
+          onClick: function(e, els) {
+            if (els && els.length > 0) {
+              var idx = els[0].index;
+              var cat = cats[idx];
+              donutCatFilter = (donutCatFilter === cat) ? "" : cat;
+              renderDonutChart();
+              renderDonutLegend(cats, catTotals);
+              filterAndRender();
+            }
+          }
+        }
+      });
+      renderDonutLegend(cats, catTotals);
+    }
+
+    function renderDonutLegend(cats, catTotals) {
+      var container = document.getElementById("donut-legend");
+      var html = "";
+      for (var i = 0; i < cats.length; i++) {
+        var c = cats[i];
+        var dimmed = donutCatFilter && c !== donutCatFilter ? " dimmed" : "";
+        var color = CAT.colorFor(c);
+        html += '<div class="donut-legend-item' + dimmed + '" data-cat="' + c + '" style="border-color:' + (donutCatFilter === c ? color : 'transparent') + '"><span class="donut-legend-swatch" style="background:' + color + '"></span>' + c + ' <span style="color:var(--text-secondary)">' + U.fmtMYR(catTotals[c]) + '</span></div>';
+      }
+      container.innerHTML = html;
+      container.querySelectorAll(".donut-legend-item").forEach(function(item) {
+        item.addEventListener("click", function() {
+          var cat = this.dataset.cat;
+          donutCatFilter = (donutCatFilter === cat) ? "" : cat;
+          renderDonutChart();
+          renderDonutLegend(cats, catTotals);
+          filterAndRender();
+        });
+      });
+    }
+
+    function renderSavingsChart() {
+      var grouped = groupByDay(chartTransactions);
+      var labels = buildLabels(currentWindow);
+      var incomeData = labels.map(function(d) { return grouped[d] ? grouped[d].income : 0; });
+      var expenseData = labels.map(function(d) { return grouped[d] ? grouped[d].expense : 0; });
+      var totalIncome = incomeData.reduce(function(a,b) { return a+b; }, 0);
+      var totalExpense = expenseData.reduce(function(a,b) { return a+b; }, 0);
+      var net = totalIncome - totalExpense;
+      var netEl = document.getElementById("net-flow");
+      netEl.textContent = U.fmtMYR(net);
+      netEl.className = "net-flow currency " + (net >= 0 ? "positive" : "negative");
+      var labelMap = { 7: "Last 7 days", 30: "Last 30 days", 365: "Last 12 months" };
+      document.getElementById("net-label").textContent = labelMap[currentWindow];
+      var ctx = document.getElementById("savings-chart").getContext("2d");
+      if (savingsChart) savingsChart.destroy();
+      savingsChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [
+            { label: "Income", data: incomeData, backgroundColor: "#a5d6a7", borderColor: "#2e7d32", borderWidth: 1, borderRadius: 4 },
+            { label: "Expenses", data: expenseData, backgroundColor: "#ef9a9a", borderColor: "#c62828", borderWidth: 1, borderRadius: 4 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            tooltip: { callbacks: { label: function(c) { return c.dataset.label + ": " + U.fmtMYR(c.raw); } } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { maxTicksLimit: currentWindow <= 7 ? 7 : currentWindow <= 30 ? 10 : 12, callback: function(v) { var d=this.getLabelForValue(v); if(!d)return"";var p=d.split("-");return p[2]+"/"+p[1]; } } },
+            y: { beginAtZero: true, ticks: { callback: function(v) { return U.fmtMYR(v); } } }
           }
         }
       });
@@ -121,11 +243,9 @@
     function getFilterMonths() {
       var months = new Set();
       for (var i = 0; i < allTransactions.length; i++) {
-        var d = allTransactions[i].occurred_on.substring(0, 7);
-        months.add(d);
+        months.add(allTransactions[i].occurred_on.substring(0, 7));
       }
-      var arr = Array.from(months).sort().reverse();
-      return arr;
+      return Array.from(months).sort().reverse();
     }
 
     function renderFilterChips() {
@@ -138,8 +258,7 @@
       for (var i = 0; i < months.length; i++) {
         var m = months[i];
         var parts = m.split("-");
-        var label = monthNames[parseInt(parts[1])-1] + " " + parts[0];
-        html += '<span class="filter-chip' + (m === active ? ' active' : '') + '" data-month="' + m + '">' + label + '</span>';
+        html += '<span class="filter-chip' + (m === active ? ' active' : '') + '" data-month="' + m + '">' + monthNames[parseInt(parts[1])-1] + " " + parts[0] + '</span>';
       }
       container.innerHTML = html;
       container.querySelectorAll(".filter-chip").forEach(function(chip) {
@@ -164,7 +283,22 @@
           return (t.note && t.note.toLowerCase().indexOf(search) !== -1) || (t.category && t.category.toLowerCase().indexOf(search) !== -1);
         });
       }
+      if (donutCatFilter) {
+        filtered = filtered.filter(function(t) { return t.category === donutCatFilter; });
+      }
       return filtered.sort(function(a,b) { return new Date(b.occurred_on) - new Date(a.occurred_on); });
+    }
+
+    function hasActiveFilters() {
+      var search = document.getElementById("tx-search").value.trim();
+      var activeChip = document.querySelector("#filter-chips .filter-chip.active");
+      var month = activeChip ? activeChip.dataset.month : "";
+      return !!(search || month || donutCatFilter);
+    }
+
+    function updateClearFilters() {
+      var btn = document.getElementById("clear-filters");
+      btn.style.display = hasActiveFilters() ? "" : "none";
     }
 
     function confirmDialog(msg) {
@@ -190,9 +324,8 @@
       }, { passive: true });
       content.addEventListener("touchmove", function(e) {
         if (!isDragging) return;
-        var dx = e.touches[0].clientX - startX;
-        movedX = dx;
-        content.style.transform = "translateX(" + dx + "px)";
+        movedX = e.touches[0].clientX - startX;
+        content.style.transform = "translateX(" + movedX + "px)";
       }, { passive: false });
       content.addEventListener("touchend", function() {
         isDragging = false;
@@ -200,10 +333,7 @@
         else if (movedX > 80) { window.location.href = "log.html?edit=" + txId; }
         else { content.style.transform = ""; }
       });
-      content.addEventListener("touchcancel", function() {
-        isDragging = false;
-        content.style.transform = "";
-      });
+      content.addEventListener("touchcancel", function() { isDragging = false; content.style.transform = ""; });
     }
 
     async function deleteTx(txId) {
@@ -220,6 +350,7 @@
     }
 
     function filterAndRender() {
+      updateClearFilters();
       var filtered = getFilteredTransactions();
       var container = document.getElementById("recent-list");
       var empty = document.getElementById("recent-empty");
@@ -231,6 +362,7 @@
       empty.style.display = "none";
       var latest = filtered.slice(0, 30);
       container.innerHTML = latest.map(function(t) {
+        var isIncome = t.type === "income";
         return '<div class="tx-row">' +
           '<div class="swipe-bg"><span class="bg-delete">Delete</span><span class="bg-edit">Edit</span></div>' +
           '<div class="tx-content">' +
@@ -242,7 +374,7 @@
                 '<button class="tx-action-btn" data-edit="' + t.id + '" title="Edit">&#9998;</button>' +
                 '<button class="tx-action-btn danger" data-del="' + t.id + '" title="Delete">&#128465;</button>' +
               '</div>' +
-              '<div class="spend-amount currency">' + U.fmtMYR(t.amount) + '</div>' +
+              '<div class="spend-amount currency' + (isIncome ? ' income' : '') + '">' + (isIncome ? '+ ' : '− ') + U.fmtMYR(t.amount) + '</div>' +
             '</div>' +
           '</div>' +
         '</div>';
@@ -268,10 +400,25 @@
         db.from("transactions").select("*").eq("user_id", userId).order("occurred_on", { ascending: false }).limit(200),
       ]);
       if (error) { U.toast("Failed to load transactions."); return; }
-      renderChart(chartTx || []);
+      chartTransactions = chartTx || [];
       allTransactions = allTx || [];
+
+      if (currentOverview === "spending") {
+        renderSpendingChart();
+        renderDonutChart();
+      } else {
+        renderSavingsChart();
+      }
+
       renderFilterChips();
       filterAndRender();
+    }
+
+    function switchOverview(view) {
+      currentOverview = view;
+      document.getElementById("view-spending").style.display = view === "spending" ? "" : "none";
+      document.getElementById("view-savings").style.display = view === "savings" ? "" : "none";
+      reloadAll();
     }
 
     async function loadDashboard() {
@@ -283,14 +430,36 @@
 
     document.querySelectorAll(".chart-tab").forEach(function(btn) {
       btn.addEventListener("click", function() {
-        document.querySelectorAll(".chart-tab").forEach(function(b) { b.classList.remove("active"); });
+        var parent = this.closest("[id]");
+        var isSavings = parent && parent.id === "view-savings";
+        var tabs = isSavings ? document.querySelectorAll("#savings-tabs .chart-tab") : document.querySelectorAll("#view-spending .chart-tab");
+        tabs.forEach(function(b) { b.classList.remove("active"); });
         btn.classList.add("active");
         currentWindow = parseInt(btn.dataset.window);
         reloadAll();
       });
     });
 
+    document.querySelectorAll(".overview-tab").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        document.querySelectorAll(".overview-tab").forEach(function(b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        switchOverview(btn.dataset.view);
+      });
+    });
+
     document.getElementById("tx-search").addEventListener("input", filterAndRender);
+
+    document.getElementById("clear-filters").addEventListener("click", function() {
+      document.getElementById("tx-search").value = "";
+      document.querySelectorAll("#filter-chips .filter-chip").forEach(function(c) { c.classList.remove("active"); });
+      var allChip = document.querySelector('#filter-chips .filter-chip[data-month=""]');
+      if (allChip) allChip.classList.add("active");
+      donutCatFilter = "";
+      updateClearFilters();
+      filterAndRender();
+      if (donutChart) { renderDonutChart(); }
+    });
 
     loadDashboard();
   </script>

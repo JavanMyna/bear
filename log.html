@@ -10,6 +10,7 @@
   <script src="js/supabase.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/categories.js"></script>
 </head>
 <body>
   <div id="toast" class="toast"></div>
@@ -27,6 +28,14 @@
 
   <main class="page">
     <div class="card">
+      <div class="form-group">
+        <label>Type</label>
+        <div class="type-toggle">
+          <button class="type-btn active" data-type="expense" id="type-expense">− Expense</button>
+          <button class="type-btn" data-type="income" id="type-income">+ Income</button>
+        </div>
+      </div>
+
       <div class="form-group">
         <label for="amount">Amount (RM) *</label>
         <input type="number" id="amount" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required autofocus />
@@ -90,19 +99,10 @@
     var userId = null;
     var editId = null;
     var selectedCategory = "";
-
-    var CAT_DEFAULTS = [
-      { name: "Food", emoji: "🍔" },
-      { name: "Transport", emoji: "🚗" },
-      { name: "Bills", emoji: "🧾" },
-      { name: "Shopping", emoji: "🛍️" },
-      { name: "Entertainment", emoji: "🎬" },
-      { name: "Health", emoji: "💊" },
-      { name: "Other", emoji: "📦" }
-    ];
+    var txType = "expense";
 
     function getCustomCategories() {
-      try { return JSON.parse(localStorage.getItem("customCats") || "[]"); } catch(e) { return []; }
+      return CAT.getCustom();
     }
 
     function saveCustomCategories(arr) {
@@ -113,7 +113,7 @@
     }
 
     function allCategories() {
-      return CAT_DEFAULTS.concat(getCustomCategories());
+      return CAT.defaults.concat(getCustomCategories());
     }
 
     function renderChips() {
@@ -186,10 +186,9 @@
           document.getElementById("category").value = selectedCategory;
           document.getElementById("date").value = data.occurred_on;
           document.getElementById("note").value = data.note || "";
-        }
-      }
-
-      renderChips();
+          txType = data.type || "expense";
+          updateTypeToggle();
+          renderChips();
       loadToday();
     }
 
@@ -215,7 +214,8 @@
       totalEl.textContent = "Total: " + U.fmtMYR(total);
       totalEl.style.display = "";
       container.innerHTML = data.map(function(t) {
-        return '<div class="spend-row"><div>' + (t.category ? '<span class="spend-category">' + t.category + '</span>' : "") + (t.note ? '<span class="spend-meta">' + t.note + '</span>' : "") + '</div><div class="spend-amount currency">' + U.fmtMYR(t.amount) + '</div></div>';
+        var isIncome = t.type === "income";
+        return '<div class="spend-row"><div>' + (t.category ? '<span class="spend-category">' + t.category + '</span>' : "") + (t.note ? '<span class="spend-meta">' + t.note + '</span>' : "") + '</div><div class="spend-amount currency' + (isIncome ? ' income' : '') + '">' + (isIncome ? '+' : '−') + ' ' + U.fmtMYR(t.amount) + '</div></div>';
       }).join("");
     }
 
@@ -228,22 +228,37 @@
       if (!amountStr || isNaN(amount) || amount <= 0) return U.toast("Please enter a valid amount.");
 
       if (editId) {
-        var { error } = await db.from("transactions").update({ amount: amount, category: category || null, note: note || null, occurred_on: date }).eq("id", editId);
+        var { error } = await db.from("transactions").update({ amount: amount, type: txType, category: category || null, note: note || null, occurred_on: date }).eq("id", editId);
         if (error) { U.toast("Failed to update."); return; }
         U.toast("Updated!", true);
         window.location.href = "dashboard.html";
       } else {
-        var { error } = await db.from("transactions").insert({ user_id: userId, amount: amount, category: category || null, note: note || null, occurred_on: date });
+        var { error } = await db.from("transactions").insert({ user_id: userId, amount: amount, type: txType, category: category || null, note: note || null, occurred_on: date });
         if (error) { U.toast("Failed to save transaction."); return; }
         U.toast("Saved!", true);
         document.getElementById("amount").value = "";
         selectedCategory = "";
         document.getElementById("category").value = "";
         document.getElementById("note").value = "";
+        txType = "expense";
+        updateTypeToggle();
         document.getElementById("amount").focus();
         renderChips();
         loadToday();
       }
+    });
+
+    function updateTypeToggle() {
+      document.querySelectorAll(".type-btn").forEach(function(b) { b.classList.remove("active"); });
+      var btn = txType === "income" ? document.getElementById("type-income") : document.getElementById("type-expense");
+      if (btn) btn.classList.add("active");
+    }
+
+    document.querySelectorAll(".type-btn").forEach(function(b) {
+      b.addEventListener("click", function() {
+        txType = this.dataset.type;
+        updateTypeToggle();
+      });
     });
 
     document.getElementById("delete-btn").addEventListener("click", async function() {

@@ -52,5 +52,22 @@ const U = (() => {
     return d.innerHTML;
   }
 
-  return { fmtMYR, fmtDate, fmtDateShort, todayStr, daysAgoStr, daysBetween, toast, escHtml };
+  var NON_SPEND_CATEGORIES = ["Savings"];
+
+  function isRealSpend(t) {
+    return t.type !== "income" && NON_SPEND_CATEGORIES.indexOf(t.category) === -1;
+  }
+
+  function spendTotal(transactions, opts) {
+    opts = opts || {};
+    var from = opts.from, to = opts.to;
+    return transactions.reduce(function(sum, t) {
+      if (!isRealSpend(t)) return sum;
+      if (from && t.occurred_on < from) return sum;
+      if (to && t.occurred_on > to) return sum;
+      return sum + parseFloat(t.amount);
+    }, 0);
+  }
+
+  return { fmtMYR, fmtDate, fmtDateShort, todayStr, daysAgoStr, daysBetween, toast, escHtml, isRealSpend, spendTotal };
 })();

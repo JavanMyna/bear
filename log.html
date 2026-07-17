@@ -81,7 +81,9 @@
 
       <div class="form-group">
         <label>Category</label>
+        <div class="cat-chips-wrap">
         <div class="cat-chips" id="cat-chips"></div>
+        </div>
         <div class="cat-create-row" id="cat-create" style="display:none;">
           <input type="text" id="cat-name" placeholder="Category name" maxlength="20" />
           <button class="cat-chip cat-emoji emoji-pick" id="cat-emoji" title="Tap to cycle emoji">📦</button>
@@ -297,21 +299,22 @@
     }
 
     document.getElementById("submit-btn").addEventListener("click", async function() {
+      document.getElementById("submit-btn").disabled = true;
       var amountStr = document.getElementById("amount").value;
       var category = document.getElementById("category").value;
       var date = document.getElementById("date").value || U.todayStr();
       var note = document.getElementById("note").value.trim();
       var amount = parseFloat(amountStr);
-      if (!amountStr || isNaN(amount) || amount <= 0) return U.toast("Please enter a valid amount.");
+      if (!amountStr || isNaN(amount) || amount <= 0) { document.getElementById("submit-btn").disabled = false; return U.toast("Please enter a valid amount."); }
 
       if (editId) {
         var { error } = await db.from("transactions").update({ amount: amount, type: txType, category: category || null, note: note || null, occurred_on: date }).eq("id", editId);
-        if (error) { U.toast("Failed to update."); return; }
+        if (error) { document.getElementById("submit-btn").disabled = false; U.toast("Failed to update."); return; }
         U.toast("Updated!", true);
         window.location.href = "dashboard.html";
       } else {
         var { error } = await db.from("transactions").insert({ user_id: userId, amount: amount, type: txType, category: category || null, note: note || null, occurred_on: date });
-        if (error) { U.toast("Failed to save transaction."); return; }
+        if (error) { document.getElementById("submit-btn").disabled = false; U.toast("Failed to save transaction."); return; }
 
         var isRepeat = document.getElementById("repeat-toggle").checked;
         if (isRepeat) {
@@ -332,6 +335,7 @@
         document.getElementById("amount").focus();
         renderChips();
         loadToday();
+        document.getElementById("submit-btn").disabled = false;
       }
     });
 

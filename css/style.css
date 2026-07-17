@@ -25,6 +25,7 @@
 }
 
 [data-theme="dark"] {
+  --green-dark: #4caf50;
   --bg: #121212;
   --surface: #1e1e1e;
   --text: #e0e0e0;
@@ -802,6 +803,14 @@ textarea {
 }
 
 /* ---- Category chips ---- */
+.cat-chips-wrap { position: relative; }
+.cat-chips-wrap::after {
+  content: "";
+  position: absolute; top: 0; right: 0; bottom: 0.5rem; width: 24px;
+  background: linear-gradient(to right, transparent, var(--surface));
+  pointer-events: none;
+}
+
 .cat-chips {
   display: flex;
   flex-wrap: nowrap;

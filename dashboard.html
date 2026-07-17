@@ -74,16 +74,17 @@
     </div>
 
     <div class="card" id="projected-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-        <h2 style="margin:0;">Projected Month End</h2>
-        <label class="toggle-switch" style="flex-shrink:0;">
-          <input type="checkbox" id="future-toggle" />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
+      <h2>Projected Month End</h2>
       <div class="projected-total currency" id="projected-total">RM 0.00</div>
       <div class="projected-meta" id="projected-meta">No balance check-in yet.</div>
       <div id="future-extra" style="display:none;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+          <span style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);">Show 3-month &amp; 1-year outlook</span>
+          <label class="toggle-switch" style="flex-shrink:0;">
+            <input type="checkbox" id="future-toggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
           <div>
             <div style="font-size:0.7rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;">+3 Months</div>
@@ -157,8 +158,14 @@
       return labels;
     }
 
+    function inWindow(tx, labels) {
+      var set = {};
+      labels.forEach(function(d){ set[d] = true; });
+      return tx.filter(function(t){ return set[t.occurred_on]; });
+    }
+
     function expensesOnly(tx) {
-      return tx.filter(function(t) { return t.type !== "income"; });
+      return tx.filter(function(t) { return U.isRealSpend(t); });
     }
 
     function renderSpendingChart() {
@@ -187,7 +194,9 @@
     }
 
     function renderDonutChart() {
-      var expenses = expensesOnly(chartTransactions);
+      var labels = buildLabels(currentWindow);
+      var expenses = U.isRealSpend ? chartTransactions.filter(function(t){ return U.isRealSpend(t); }) : expensesOnly(chartTransactions);
+      expenses = inWindow(expenses, labels);
       var catTotals = {};
       for (var i = 0; i < expenses.length; i++) {
         var cat = expenses[i].category || "Other";
@@ -499,7 +508,7 @@
         var d = t.occurred_on;
         if (!dates[d]) dates[d] = { exp: 0, inc: 0 };
         if (t.type === "income") dates[d].inc += parseFloat(t.amount);
-        else dates[d].exp += parseFloat(t.amount);
+        else if (U.isRealSpend(t)) dates[d].exp += parseFloat(t.amount);
       }
       var days = Object.keys(dates).length;
       if (days === 0) return 0;
@@ -565,11 +574,7 @@
       var monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().substring(0, 10);
       var monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       var daysLeft = Math.ceil((monthEnd - now) / 86400000) + 1;
-      var spent = 0;
-      for (var i = 0; i < allTransactions.length; i++) {
-        var t = allTransactions[i];
-        if (t.type !== "income" && t.occurred_on >= monthStart) spent += parseFloat(t.amount);
-      }
+      var spent = U.spendTotal(allTransactions, {from: monthStart});
       var remaining = monthlyBudget - spent;
       var dailySafe = Math.max(0, remaining) / Math.max(1, daysLeft);
       var pct = Math.min(100, Math.round((spent / monthlyBudget) * 100));
@@ -584,7 +589,7 @@
     }
 
     async function reloadAll() {
-      var since = U.daysAgoStr(currentWindow);
+      var since = U.daysAgoStr(currentWindow - 1);
       var [{ data: chartTx, error }, { data: allTx }] = await Promise.all([
         db.from("transactions").select("*").eq("user_id", userId).gte("occurred_on", since).order("occurred_on", { ascending: true }),
         db.from("transactions").select("*").eq("user_id", userId).order("occurred_on", { ascending: false }).limit(200),

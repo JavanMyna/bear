@@ -364,22 +364,25 @@
 
     function bindSwipe(el, txId) {
       var content = el.querySelector(".tx-content");
-      var startX = 0, movedX = 0, isDragging = false;
+      var startX = 0, startY = 0, movedX = 0, movedY = 0, isDragging = false;
       content.addEventListener("touchstart", function(e) {
         if (e.touches.length !== 1) return;
         startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
         movedX = 0;
+        movedY = 0;
         isDragging = true;
       }, { passive: true });
       content.addEventListener("touchmove", function(e) {
         if (!isDragging) return;
         movedX = e.touches[0].clientX - startX;
+        movedY = e.touches[0].clientY - startY;
         content.style.transform = "translateX(" + movedX + "px)";
       }, { passive: false });
       content.addEventListener("touchend", function() {
         isDragging = false;
-        if (movedX < -80) { deleteTx(txId); }
-        else if (movedX > 80) { window.location.href = "log.html?edit=" + txId; }
+        if (Math.abs(movedX) > Math.abs(movedY) && movedX < -120) { deleteTx(txId); }
+        else if (Math.abs(movedX) > Math.abs(movedY) && movedX > 120) { window.location.href = "log.html?edit=" + txId; }
         else { content.style.transform = ""; }
       });
       content.addEventListener("touchcancel", function() { isDragging = false; content.style.transform = ""; });
@@ -629,8 +632,7 @@
 
     document.querySelectorAll(".chart-tab").forEach(function(btn) {
       btn.addEventListener("click", function() {
-        var parent = this.closest("[id]");
-        var isSavings = parent && parent.id === "view-savings";
+        var isSavings = this.closest("#view-savings") !== null;
         var tabs = isSavings ? document.querySelectorAll("#savings-tabs .chart-tab") : document.querySelectorAll("#view-spending .chart-tab");
         tabs.forEach(function(b) { b.classList.remove("active"); });
         btn.classList.add("active");

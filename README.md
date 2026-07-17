@@ -113,6 +113,14 @@ Not yet licensed — all rights reserved by default until a LICENSE file is adde
 
 ---
 
+## Development Process
+
+Most features start with a written brief where I outline the requirements, edge cases, and constraints. I then use na LLM to help implement the feature, review the generated code, test it and make any necessary fixes or improvements.
+
+While AI helps speed up development, I still handle the debugging, verification and final decisions.
+
+---
+
 ## Author
 
 Built by [JavanMyna](https://github.com/JavanMyna).

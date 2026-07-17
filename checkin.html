@@ -112,7 +112,7 @@
       const settings = await getSettings();
       const runwayDays = settings.runway_days;
 
-      const { data: allTx } = await db
+      let { data: allTx } = await db
         .from("transactions")
         .select("occurred_on")
         .eq("user_id", userId)
@@ -136,7 +136,7 @@
       const windowSize = historyDays < 14 ? 14 : 30;
       const cutoff = U.daysAgoStr(windowSize);
 
-      const { data: transactions } = await db
+      let { data: transactions } = await db
         .from("transactions")
         .select("*")
         .eq("user_id", userId)

@@ -154,7 +154,11 @@
         avgDailySpend = settings.starting_daily_estimate;
       } else {
         const total = U.spendTotal(transactions || []);
-        avgDailySpend = total / windowSize;
+        // Divide by the smaller of windowSize and historyDays so that
+        // accounts without a full window of history don't treat
+        // pre-existence days as verified zero-spend days, which would
+        // deflate the daily average and overstate safe-to-save.
+        avgDailySpend = total / Math.min(windowSize, historyDays);
       }
 
       const floor = avgDailySpend * runwayDays;

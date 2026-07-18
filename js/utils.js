@@ -58,6 +58,19 @@ const U = (() => {
     return t.type !== "income" && NON_SPEND_CATEGORIES.indexOf(t.category) === -1;
   }
 
+  // Safe month addition that clamps to the last valid day of the target
+  // month instead of rolling into the next month when the target month
+  // has fewer days (e.g. Jan 31 -> Feb 28, not Mar 3).
+  function addMonthsSafe(dateStr, n) {
+    var d = new Date(dateStr + "T00:00:00");
+    var targetDay = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + n);
+    var lastDayOfTargetMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(targetDay, lastDayOfTargetMonth));
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
   function spendTotal(transactions, opts) {
     opts = opts || {};
     var from = opts.from, to = opts.to;
@@ -69,5 +82,5 @@ const U = (() => {
     }, 0);
   }
 
-  return { fmtMYR, fmtDate, fmtDateShort, todayStr, daysAgoStr, daysBetween, toast, escHtml, isRealSpend, spendTotal };
+  return { fmtMYR, fmtDate, fmtDateShort, todayStr, daysAgoStr, daysBetween, toast, escHtml, isRealSpend, spendTotal, addMonthsSafe };
 })();

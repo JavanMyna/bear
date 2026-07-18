@@ -536,9 +536,21 @@
         return;
       }
       var latest = checkins[0];
-      var balance = parseFloat(latest.balance);
-      var netTrend = await computeNetDailyTrend();
+      var checkinBalance = parseFloat(latest.balance);
+      var checkinDate = latest.checked_at.substring(0, 10);
       var today = U.todayStr();
+
+      // Pull actual logged transactions since the check-in and fold them
+      // into the starting balance before projecting recurring items forward.
+      var { data: sinceTx } = await db.from("transactions").select("*")
+        .eq("user_id", userId).gte("occurred_on", checkinDate).lte("occurred_on", today);
+      var actualDelta = 0;
+      (sinceTx || []).forEach(function(t) {
+        actualDelta += (t.type === "income" ? parseFloat(t.amount) : -parseFloat(t.amount));
+      });
+      var balance = checkinBalance + actualDelta;
+
+      var netTrend = await computeNetDailyTrend();
       var monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().substring(0, 10);
       var plus3mo = new Date(new Date().getFullYear(), new Date().getMonth() + 3, 0).toISOString().substring(0, 10);
       var plus1yr = new Date(new Date().getFullYear() + 1, new Date().getMonth(), new Date().getDate()).toISOString().substring(0, 10);

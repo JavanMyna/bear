@@ -78,6 +78,23 @@ const U = (() => {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
 
+  function nextOccurrence(fromDate, freq, dayOfWeek, dayOfMonth) {
+    var d = new Date(fromDate + "T00:00:00");
+    if (freq === "daily") {
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().substring(0, 10);
+    }
+    if (freq === "weekly") {
+      do { d.setDate(d.getDate() + 1); } while (d.getDay() !== dayOfWeek);
+      return d.toISOString().substring(0, 10);
+    }
+    var next = addMonthsSafe(fromDate, 1).substring(0, 7);
+    var base = new Date(next + "-01T00:00:00");
+    var lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+    base.setDate(Math.min(dayOfMonth || 1, lastDay));
+    return base.getFullYear() + "-" + String(base.getMonth() + 1).padStart(2, "0") + "-" + String(base.getDate()).padStart(2, "0");
+  }
+
   function spendTotal(transactions, opts) {
     opts = opts || {};
     var from = opts.from, to = opts.to;
@@ -89,5 +106,5 @@ const U = (() => {
     }, 0);
   }
 
-  return { fmtMYR, fmtDate, fmtDateShort, todayStr, daysAgoStr, daysBetween, localDateStr, toast, escHtml, isRealSpend, spendTotal, addMonthsSafe };
+  return { fmtMYR, fmtDate, fmtDateShort, todayStr, daysAgoStr, daysBetween, localDateStr, toast, escHtml, isRealSpend, spendTotal, addMonthsSafe, nextOccurrence };
 })();

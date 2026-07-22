@@ -989,6 +989,7 @@ textarea {
   font-size: 0.85rem;
   cursor: pointer;
   transition: background 0.15s;
+  color: var(--text);
 }
 
 .tx-action-btn:hover {
@@ -1164,6 +1165,23 @@ textarea {
   border-radius: var(--radius-sm);
   background: var(--surface);
   cursor: pointer;
+}
+
+.cat-create-row input.cat-emoji {
+  width: 48px;
+  padding: 0.5rem 0.3rem;
+  font-size: 1.1rem;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.cat-create-row input.cat-emoji:focus {
+  outline: none;
+  border-color: var(--green);
 }
 
 /* ---- Recurring form ---- */

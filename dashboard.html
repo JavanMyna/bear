@@ -599,7 +599,17 @@
 
     var budgetSettings = null;
     async function loadBudgetSettings() {
-      try { var { data } = await db.from("settings").select("monthly_budget").eq("user_id", userId).single(); budgetSettings = data; } catch(e) { budgetSettings = null; }
+      try { var { data } = await db.from("settings").select("monthly_budget, default_dashboard_view").eq("user_id", userId).single(); budgetSettings = data; } catch(e) { budgetSettings = null; }
+    }
+
+    function applyDefaultView() {
+      var view = (budgetSettings && budgetSettings.default_dashboard_view) || "spending";
+      currentOverview = view;
+      document.getElementById("view-spending").style.display = view === "spending" ? "" : "none";
+      document.getElementById("view-savings").style.display = view === "savings" ? "" : "none";
+      document.querySelectorAll(".overview-tab").forEach(function(b) {
+        b.classList.toggle("active", b.dataset.view === view);
+      });
     }
 
     function renderBudgetPace() {
@@ -674,6 +684,7 @@
       await CAT.syncFromServer(db, userId);
       await processRecurringCatchUp();
       await loadBudgetSettings();
+      applyDefaultView();
       reloadAll();
     }
 

@@ -41,6 +41,13 @@
           <span class="toggle-slider"></span>
         </label>
       </div>
+      <div class="setting-row">
+        <span>Default Dashboard View</span>
+        <div class="type-toggle" id="default-view-toggle" style="max-width:220px;">
+          <button class="type-btn" data-view="spending">Spending</button>
+          <button class="type-btn" data-view="savings">Savings</button>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -198,6 +205,7 @@
 
   <script>
     let userId = null;
+    var selectedDefaultView = "spending";
 
     async function init() {
       const session = await AUTH.requireAuth();
@@ -214,6 +222,14 @@
           document.documentElement.removeAttribute("data-theme");
           localStorage.setItem("theme", "light");
         }
+      });
+
+      document.querySelectorAll("#default-view-toggle .type-btn").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          document.querySelectorAll("#default-view-toggle .type-btn").forEach(function(b) { b.classList.remove("active"); });
+          this.classList.add("active");
+          selectedDefaultView = this.dataset.view;
+        });
       });
 
       await loadSettings();
@@ -233,6 +249,10 @@
         if (data.monthly_budget != null) {
           document.getElementById("monthly-budget").value = parseFloat(data.monthly_budget);
         }
+        selectedDefaultView = data.default_dashboard_view || "spending";
+        document.querySelectorAll("#default-view-toggle .type-btn").forEach(function(btn) {
+          btn.classList.toggle("active", btn.dataset.view === selectedDefaultView);
+        });
       }
     }
 
@@ -257,6 +277,7 @@
           runway_days: runwayDays,
           starting_daily_estimate: startingEstimate,
           monthly_budget: monthlyBudget,
+          default_dashboard_view: selectedDefaultView,
         });
 
       if (error) {
@@ -512,6 +533,8 @@
         day_of_month: freq === "monthly" ? parseInt(document.getElementById("rec-edit-dom").value) : null,
       };
 
+      payload.next_occurrence = U.nextOccurrence(U.todayStr(), freq, payload.day_of_week, payload.day_of_month);
+
       var { error } = await db.from("recurring_transactions").update(payload).eq("id", recEditId);
       if (error) { U.toast("Failed to save."); return; }
 
@@ -529,6 +552,10 @@
         recEditFreq = this.dataset.freq;
         showRecEditFreqFields(recEditFreq);
       });
+    });
+
+    window.addEventListener("pageshow", function(e) {
+      if (e.persisted) loadRecurring();
     });
 
     init();

@@ -16,6 +16,8 @@
 --   alter table settings add column monthly_budget numeric;
 -- Phase 4: recurring link + future projections
 --   alter table transactions add column recurring_transaction_id uuid references recurring_transactions(id);
+-- Phase 5: per-user default dashboard view (spending vs savings)
+--   alter table settings add column if not exists default_dashboard_view text not null default 'spending' check (default_dashboard_view in ('spending','savings'));
 -- ============================================================
 
 -- 1. Profiles table
@@ -43,7 +45,8 @@ create policy "profiles_delete_own" on profiles
 create table settings (
   user_id uuid references auth.users primary key,
   runway_days int not null default 14,
-  starting_daily_estimate numeric not null default 0
+  starting_daily_estimate numeric not null default 0,
+  default_dashboard_view text not null default 'spending' check (default_dashboard_view in ('spending','savings'))
 );
 
 alter table settings enable row level security;

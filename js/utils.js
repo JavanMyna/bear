@@ -95,6 +95,14 @@ const U = (() => {
     return base.getFullYear() + "-" + String(base.getMonth() + 1).padStart(2, "0") + "-" + String(base.getDate()).padStart(2, "0");
   }
 
+  function coversThrough(nextOccurrenceISO) {
+    if (!nextOccurrenceISO) return null;
+    var d = new Date(nextOccurrenceISO + "T00:00:00");
+    if (isNaN(d.getTime())) return null;
+    d.setDate(d.getDate() - 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
   function spendTotal(transactions, opts) {
     opts = opts || {};
     var from = opts.from, to = opts.to;
@@ -106,5 +114,5 @@ const U = (() => {
     }, 0);
   }
 
-  return { fmtMYR, fmtDate, fmtDateShort, todayStr, daysAgoStr, daysBetween, localDateStr, toast, escHtml, isRealSpend, spendTotal, addMonthsSafe, nextOccurrence };
+  return { fmtMYR, fmtDate, fmtDateShort, todayStr, daysAgoStr, daysBetween, localDateStr, toast, escHtml, isRealSpend, spendTotal, addMonthsSafe, nextOccurrence, coversThrough };
 })();

@@ -1352,6 +1352,13 @@ textarea {
   margin-top: 0.15rem;
 }
 
+.rec-row-covers {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  opacity: 0.75;
+  margin-top: 0.1rem;
+}
+
 .rec-freq-badge {
   font-size: 0.65rem;
   font-weight: 600;
